@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\project\stress_test\build\CMakeFiles\74e3a17dad2572ef750c6136c0454e9d\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{675847A5-E12A-3BED-9978-320D499C8139}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
