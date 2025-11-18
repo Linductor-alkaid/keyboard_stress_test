@@ -31,7 +31,7 @@ void printUsage(const char* programName) {
     std::cout << "  4. 按 ESC 键退出程序" << std::endl;
 }
 
-bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, double& frequency, int& delay, bool& frequencySet, bool& delaySet) {
+bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, double& frequency, int& delay, bool& frequencySet, bool& delaySet, bool& textSet) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         
@@ -40,6 +40,7 @@ bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, dou
         } else if (arg == "-t" || arg == "--text") {
             if (i + 1 < argc) {
                 texts.push_back(argv[++i]);
+                textSet = true;  // 标记已设置字符组
             } else {
                 std::cerr << "错误: -t 选项需要参数" << std::endl;
                 return false;
@@ -91,16 +92,23 @@ int main(int argc, char* argv[]) {
     // 设置控制台UTF-8编码
     setupConsoleUTF8();
     
-    std::vector<std::string> inputTexts = {"test"};  // 默认字符组
+    std::vector<std::string> inputTexts;  // 字符组列表（初始为空）
     double frequency = 10.0;  // 每秒10次（默认值）
     int delay = 100;          // 100毫秒（默认值）
     bool frequencySet = false;  // 是否显式设置了频率
     bool delaySet = false;      // 是否显式设置了延迟
+    bool textSet = false;       // 是否显式设置了字符组
     
     // 解析命令行参数
-    if (!parseArguments(argc, argv, inputTexts, frequency, delay, frequencySet, delaySet)) {
+    if (!parseArguments(argc, argv, inputTexts, frequency, delay, frequencySet, delaySet, textSet)) {
         printUsage(argv[0]);
         return 1;
+    }
+    
+    // 如果没有指定任何字符组，使用默认值
+    if (!textSet || inputTexts.empty()) {
+        inputTexts.clear();
+        inputTexts.push_back("test");
     }
     
     // 根据设置情况确定最终的延迟值
