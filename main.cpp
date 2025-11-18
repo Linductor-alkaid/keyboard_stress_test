@@ -31,7 +31,7 @@ void printUsage(const char* programName) {
     std::cout << "  4. 按 ESC 键退出程序" << std::endl;
 }
 
-bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, double& frequency, int& delay) {
+bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, double& frequency, int& delay, bool& frequencySet, bool& delaySet) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         
@@ -47,6 +47,7 @@ bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, dou
         } else if (arg == "-f" || arg == "--frequency") {
             if (i + 1 < argc) {
                 frequency = std::stod(argv[++i]);
+                frequencySet = true;
             } else {
                 std::cerr << "错误: -f 选项需要参数" << std::endl;
                 return false;
@@ -54,6 +55,7 @@ bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, dou
         } else if (arg == "-d" || arg == "--delay") {
             if (i + 1 < argc) {
                 delay = std::stoi(argv[++i]);
+                delaySet = true;
             } else {
                 std::cerr << "错误: -d 选项需要参数" << std::endl;
                 return false;
@@ -90,18 +92,33 @@ int main(int argc, char* argv[]) {
     setupConsoleUTF8();
     
     std::vector<std::string> inputTexts = {"test"};  // 默认字符组
-    double frequency = 10.0;  // 每秒10次
-    int delay = 100;          // 100毫秒
+    double frequency = 10.0;  // 每秒10次（默认值）
+    int delay = 100;          // 100毫秒（默认值）
+    bool frequencySet = false;  // 是否显式设置了频率
+    bool delaySet = false;      // 是否显式设置了延迟
     
     // 解析命令行参数
-    if (!parseArguments(argc, argv, inputTexts, frequency, delay)) {
+    if (!parseArguments(argc, argv, inputTexts, frequency, delay, frequencySet, delaySet)) {
         printUsage(argv[0]);
         return 1;
     }
     
-    // 如果设置了频率，计算延迟
-    if (frequency > 0) {
-        delay = static_cast<int>(1000.0 / frequency);
+    // 根据设置情况确定最终的延迟值
+    // 逻辑：同时设置时以频率为准，单独设置时使用对应值
+    if (frequencySet) {
+        // 如果设置了频率，以频率为准（计算延迟）
+        if (frequency > 0) {
+            delay = static_cast<int>(1000.0 / frequency);
+        }
+    } else if (delaySet) {
+        // 如果只设置了延迟，使用延迟值（频率保持默认或无效）
+        // delay 已经通过参数设置，不需要修改
+    } else {
+        // 如果都没有设置，使用默认值（frequency=10.0, delay=100）
+        // 此时需要同步：如果使用默认频率，计算对应的延迟
+        if (frequency > 0) {
+            delay = static_cast<int>(1000.0 / frequency);
+        }
     }
     
     std::cout << "========================================" << std::endl;
