@@ -1,0 +1,62 @@
+# CMake 生成的文件
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.cmake
+!CMakeLists.txt
+
+# Visual Studio 生成的文件
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio 目录
+.vs/
+.vscode/
+*.VC.db
+*.VC.VC.opendb
+
+# 编译输出
+*.obj
+*.o
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+
+# 调试文件
+*.pdb
+*.ilk
+*.idb
+*.ipdb
+
+# 临时文件
+*.tmp
+*.temp
+*.log
+*.tlog
+*.lastbuildstate
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE 配置文件
+.idea/
+*.swp
+*.swo
+*~
+
+# 可执行文件输出目录
+bin/
+lib/
+
