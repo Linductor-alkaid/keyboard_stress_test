@@ -1,3 +1,0 @@
-D:/project/stress_test/build/CMakeFiles/KeyboardStressTest.dir
-D:/project/stress_test/build/CMakeFiles/ALL_BUILD.dir
-D:/project/stress_test/build/CMakeFiles/ZERO_CHECK.dir
