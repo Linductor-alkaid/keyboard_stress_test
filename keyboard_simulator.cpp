@@ -10,14 +10,37 @@ KeyboardSimulator::KeyboardSimulator()
     , m_active(false)
     , m_paused(false)
     , m_shouldExit(false)
+#ifdef _WIN32
     , m_lastLeftMouseState(0)
     , m_lastRightMouseState(0)
+#elif __linux__
+    , m_lastLeftMouseState(false)
+    , m_lastRightMouseState(false)
+    , m_display(nullptr)
+#endif
     , m_randomGenerator(std::random_device{}())
 {
+#ifdef __linux__
+    // 初始化X11线程支持（必须在XOpenDisplay之前调用）
+    XInitThreads();
+    
+    // 初始化X11显示连接
+    m_display = XOpenDisplay(nullptr);
+    if (!m_display) {
+        std::cerr << "错误: 无法连接到X服务器" << std::endl;
+    } else {
+        // 检查XTest扩展是否可用
+        int event_base, error_base, major, minor;
+        if (!XTestQueryExtension(m_display, &event_base, &error_base, &major, &minor)) {
+            std::cerr << "警告: XTest扩展不可用，键盘模拟可能无法正常工作" << std::endl;
+        }
+    }
+#endif
 }
 
 KeyboardSimulator::~KeyboardSimulator() {
     stop();
+    // Display已经在stop()中关闭，这里不需要再次关闭
 }
 
 void KeyboardSimulator::setInputText(const std::string& text) {
@@ -58,12 +81,24 @@ void KeyboardSimulator::start() {
         return;
     }
     
+#ifdef __linux__
+    if (!m_display) {
+        std::cerr << "错误: X11显示连接未初始化" << std::endl;
+        return;
+    }
+#endif
+    
     m_running = true;
     m_active = false;
     m_paused = false;
     m_shouldExit = false;
+#ifdef _WIN32
     m_lastLeftMouseState = GetAsyncKeyState(VK_LBUTTON);
     m_lastRightMouseState = GetAsyncKeyState(VK_RBUTTON);
+#elif __linux__
+    m_lastLeftMouseState = isMouseLeftButtonClicked();
+    m_lastRightMouseState = isMouseRightButtonClicked();
+#endif
     
     // 启动监听线程（鼠标和键盘）
     m_monitorThread = std::thread(&KeyboardSimulator::inputMonitorThread, this);
@@ -79,14 +114,53 @@ void KeyboardSimulator::stop() {
     m_running = false;
     m_active = false;
     m_paused = false;
+    m_shouldExit = true;
+    
+    // 等待所有线程退出
+    if (m_inputThread.joinable()) {
+        try {
+            m_inputThread.join();
+        } catch (...) {
+            // 忽略join异常
+        }
+    }
     
     if (m_monitorThread.joinable()) {
-        m_monitorThread.join();
+        try {
+            m_monitorThread.join();
+        } catch (...) {
+            // 忽略join异常
+        }
     }
     
-    if (m_inputThread.joinable()) {
-        m_inputThread.join();
+#ifdef __linux__
+    // 在关闭Display之前，确保所有X11操作都已完成
+    try {
+        // 先获取锁，确保没有其他线程在使用Display
+        {
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+            if (m_display) {
+                XSync(m_display, False);  // 同步所有待处理的X11请求
+            }
+        }
+        
+        // 等待一小段时间，确保所有操作完成
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // 关闭Display（在确保所有线程都退出后）
+        {
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+            if (m_display) {
+                XCloseDisplay(m_display);
+                m_display = nullptr;
+            }
+        }
+    } catch (...) {
+        // 如果关闭Display时出错，至少确保指针被清空
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        m_display = nullptr;
     }
+#endif
     
     std::cout << "键盘模拟器已停止" << std::endl;
 }
@@ -104,6 +178,7 @@ bool KeyboardSimulator::shouldExit() const {
 }
 
 void KeyboardSimulator::simulateKeyInput(char key) {
+#ifdef _WIN32
     INPUT input[2] = {};
     
     // 按下键
@@ -123,6 +198,43 @@ void KeyboardSimulator::simulateKeyInput(char key) {
     input[1].ki.dwExtraInfo = 0;
     
     SendInput(2, input, sizeof(INPUT));
+#elif __linux__
+    try {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        if (!m_display) {
+            return;
+        }
+        
+        // 对于Linux，使用XTestFakeKeyEvent来模拟按键
+        // 首先尝试将字符转换为KeySym
+        KeySym keysym = NoSymbol;
+        
+        // 对于可打印ASCII字符（32-126），直接使用字符值作为KeySym
+        if (key >= 32 && key <= 126) {
+            keysym = static_cast<KeySym>(key);
+        } else {
+            // 对于特殊字符，尝试查找对应的KeySym
+            // 注意：XStringToKeysym需要字符串名称，对于单个字符可能不适用
+            // 所以对于特殊字符，我们直接使用字符值
+            keysym = static_cast<KeySym>(key);
+        }
+        
+        // 获取键码
+        KeyCode keycode = XKeysymToKeycode(m_display, keysym);
+        
+        if (keycode != 0) {
+            // 按下键
+            XTestFakeKeyEvent(m_display, keycode, True, 0);
+            XFlush(m_display);
+            
+            // 释放键
+            XTestFakeKeyEvent(m_display, keycode, False, 0);
+            XFlush(m_display);
+        }
+    } catch (...) {
+        // 忽略X11操作中的异常，避免程序崩溃
+    }
+#endif
 }
 
 void KeyboardSimulator::simulateStringInput(const std::string& text) {
@@ -143,9 +255,15 @@ void KeyboardSimulator::inputMonitorThread() {
         }
         
         // 检查鼠标左键
+#ifdef _WIN32
         DWORD currentLeftMouseState = GetAsyncKeyState(VK_LBUTTON);
         bool leftWasPressed = (m_lastLeftMouseState & 0x8000) != 0;
         bool leftIsPressed = (currentLeftMouseState & 0x8000) != 0;
+#elif __linux__
+        bool currentLeftMouseState = isMouseLeftButtonClicked();
+        bool leftWasPressed = m_lastLeftMouseState;
+        bool leftIsPressed = currentLeftMouseState;
+#endif
         
         // 如果鼠标左键刚被点击（从按下到释放）
         if (leftWasPressed && !leftIsPressed) {
@@ -167,9 +285,15 @@ void KeyboardSimulator::inputMonitorThread() {
         }
         
         // 检查鼠标右键
+#ifdef _WIN32
         DWORD currentRightMouseState = GetAsyncKeyState(VK_RBUTTON);
         bool rightWasPressed = (m_lastRightMouseState & 0x8000) != 0;
         bool rightIsPressed = (currentRightMouseState & 0x8000) != 0;
+#elif __linux__
+        bool currentRightMouseState = isMouseRightButtonClicked();
+        bool rightWasPressed = m_lastRightMouseState;
+        bool rightIsPressed = currentRightMouseState;
+#endif
         
         // 如果鼠标右键刚被点击（从按下到释放）
         if (rightWasPressed && !rightIsPressed && m_active && !m_paused) {
@@ -251,14 +375,79 @@ void KeyboardSimulator::inputThread() {
 }
 
 bool KeyboardSimulator::isMouseLeftButtonClicked() {
+#ifdef _WIN32
     return (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+#elif __linux__
+    try {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        if (!m_display) {
+            return false;
+        }
+        
+        Window root, child;
+        int root_x, root_y, win_x, win_y;
+        unsigned int mask;
+        
+        if (XQueryPointer(m_display, DefaultRootWindow(m_display), 
+                          &root, &child, &root_x, &root_y, 
+                          &win_x, &win_y, &mask)) {
+            return (mask & Button1Mask) != 0;
+        }
+    } catch (...) {
+        // 忽略X11操作中的异常
+    }
+    return false;
+#endif
 }
 
 bool KeyboardSimulator::isMouseRightButtonClicked() {
+#ifdef _WIN32
     return (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+#elif __linux__
+    try {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        if (!m_display) {
+            return false;
+        }
+        
+        Window root, child;
+        int root_x, root_y, win_x, win_y;
+        unsigned int mask;
+        
+        if (XQueryPointer(m_display, DefaultRootWindow(m_display), 
+                          &root, &child, &root_x, &root_y, 
+                          &win_x, &win_y, &mask)) {
+            return (mask & Button3Mask) != 0;
+        }
+    } catch (...) {
+        // 忽略X11操作中的异常
+    }
+    return false;
+#endif
 }
 
 bool KeyboardSimulator::isEscKeyPressed() {
+#ifdef _WIN32
     return (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+#elif __linux__
+    try {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        if (!m_display) {
+            return false;
+        }
+        
+        char keys[32];
+        KeyCode keycode = XKeysymToKeycode(m_display, XK_Escape);
+        if (keycode == 0) {
+            return false;
+        }
+        
+        XQueryKeymap(m_display, keys);
+        return (keys[keycode / 8] & (1 << (keycode % 8))) != 0;
+    } catch (...) {
+        // 忽略X11操作中的异常
+    }
+    return false;
+#endif
 }
 

@@ -5,7 +5,10 @@
 #include <iomanip>
 #include <thread>
 #include <chrono>
+#include <locale>
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 void printUsage(const char* programName) {
     std::cout << "键盘输入压力测试工具" << std::endl;
@@ -72,6 +75,7 @@ bool parseArguments(int argc, char* argv[], std::vector<std::string>& texts, dou
 
 // 设置控制台UTF-8编码
 void setupConsoleUTF8() {
+#ifdef _WIN32
     // 设置控制台代码页为UTF-8
     SetConsoleOutputCP(65001);
     SetConsoleCP(65001);
@@ -86,6 +90,11 @@ void setupConsoleUTF8() {
     cfi.FontWeight = FW_NORMAL;
     wcscpy_s(cfi.FaceName, L"Consolas");
     SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
+#elif __linux__
+    // Linux终端通常已经支持UTF-8，无需特殊设置
+    // 如果需要，可以设置locale环境变量
+    setlocale(LC_ALL, "en_US.UTF-8");
+#endif
 }
 
 int main(int argc, char* argv[]) {
@@ -149,6 +158,7 @@ int main(int argc, char* argv[]) {
     }
     simulator.setInputDelay(delay);
     
+#ifdef _WIN32
     // 设置控制台处理程序，用于捕获 Ctrl+C
     SetConsoleCtrlHandler([](DWORD dwCtrlType) -> BOOL {
         if (dwCtrlType == CTRL_C_EVENT) {
@@ -156,6 +166,7 @@ int main(int argc, char* argv[]) {
         }
         return FALSE;
     }, TRUE);
+#endif
     
     simulator.start();
     

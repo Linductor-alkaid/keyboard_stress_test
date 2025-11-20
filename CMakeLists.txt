@@ -31,6 +31,27 @@ if(WIN32)
     # set_target_properties(${PROJECT_NAME} PROPERTIES
     #     WIN32_EXECUTABLE FALSE
     # )
+# Linux特定设置
+elseif(UNIX AND NOT APPLE)
+    # 查找X11库
+    find_package(X11 REQUIRED)
+    
+    # 查找Threads库（用于std::thread支持）
+    find_package(Threads REQUIRED)
+    
+    # 链接Linux库
+    target_link_libraries(${PROJECT_NAME} 
+        PRIVATE 
+        X11
+        Xtst
+        Threads::Threads
+    )
+    
+    # 包含X11头文件目录
+    target_include_directories(${PROJECT_NAME} 
+        PRIVATE 
+        ${X11_INCLUDE_DIR}
+    )
 endif()
 
 # 编译选项

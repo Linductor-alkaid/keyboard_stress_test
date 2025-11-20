@@ -19,7 +19,18 @@
 
 - CMake 3.10 或更高版本
 - C++17 兼容的编译器（MSVC、GCC、Clang）
-- Windows 操作系统（使用Windows API）
+- **Windows**: 需要Windows API支持
+- **Linux**: 需要X11开发库（libX11-dev, libXtst-dev）
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install libx11-dev libxtst-dev
+  
+  # Fedora/RHEL
+  sudo dnf install libX11-devel libXtst-devel
+  
+  # Arch Linux
+  sudo pacman -S libx11 libxtst
+  ```
 
 ## 编译方法
 
@@ -37,23 +48,31 @@ cmake --build .
 ### 基本用法
 
 ```bash
-# 使用默认设置（文本: "test", 频率: 10次/秒）
+# Windows - 使用默认设置（文本: "test", 频率: 10次/秒）
 KeyboardStressTest.exe
 
+# Linux - 使用默认设置（文本: "test", 频率: 10次/秒）
+./KeyboardStressTest
+
 # 指定输入文本
-KeyboardStressTest.exe -t "Hello World"
+KeyboardStressTest.exe -t "Hello World"  # Windows
+./KeyboardStressTest -t "Hello World"    # Linux
 
 # 指定多个字符组（每个周期随机选择一个）
-KeyboardStressTest.exe -t "test1" -t "test2" -t "test3"
+KeyboardStressTest.exe -t "test1" -t "test2" -t "test3"  # Windows
+./KeyboardStressTest -t "test1" -t "test2" -t "test3"     # Linux
 
 # 指定输入频率（每秒20次）
-KeyboardStressTest.exe -f 20
+KeyboardStressTest.exe -f 20  # Windows
+./KeyboardStressTest -f 20    # Linux
 
 # 指定输入延迟（50毫秒）
-KeyboardStressTest.exe -d 50
+KeyboardStressTest.exe -d 50  # Windows
+./KeyboardStressTest -d 50    # Linux
 
 # 组合使用
-KeyboardStressTest.exe -t "test123" -t "abc" -t "xyz" -f 15
+KeyboardStressTest.exe -t "test123" -t "abc" -t "xyz" -f 15  # Windows
+./KeyboardStressTest -t "test123" -t "abc" -t "xyz" -f 15   # Linux
 ```
 
 ### 命令行参数
@@ -91,12 +110,21 @@ KeyboardStressTest.exe -t "test123" -t "abc" -t "xyz" -f 15
 
 ## 技术实现
 
+### Windows平台
 - 使用Windows `SendInput` API进行键盘模拟
 - 使用`GetAsyncKeyState`监听鼠标点击事件和键盘事件
+
+### Linux平台
+- 使用X11 `XTest`扩展进行键盘模拟
+- 使用X11 `XQueryPointer`和`XQueryKeymap`监听鼠标和键盘事件
+- 需要X服务器运行环境（通常在图形界面下使用）
+
+### 通用特性
 - 多线程架构：鼠标/键盘监听线程 + 输入线程
-- 支持Unicode字符输入
+- 支持ASCII字符输入（Linux）和Unicode字符输入（Windows）
 - 使用`std::mt19937`随机数生成器实现字符组随机选择
 - 字符均匀分布在输入周期内，确保精确的时间控制
+- 跨平台支持：Windows和Linux
 
 ## 许可证
 

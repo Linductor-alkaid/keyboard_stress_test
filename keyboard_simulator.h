@@ -1,12 +1,21 @@
 #ifndef KEYBOARD_SIMULATOR_H
 #define KEYBOARD_SIMULATOR_H
 
-#include <windows.h>
 #include <string>
 #include <vector>
 #include <atomic>
 #include <thread>
 #include <random>
+#include <mutex>
+
+#ifdef _WIN32
+#include <windows.h>
+#elif __linux__
+#include <X11/Xlib.h>
+#include <X11/extensions/XTest.h>
+#include <X11/keysym.h>
+#include <cstdint>
+#endif
 
 /**
  * 键盘模拟器类
@@ -79,8 +88,15 @@ private:
     std::atomic<bool> m_shouldExit;           // 是否应该退出（ESC键）
     std::thread m_monitorThread;              // 鼠标和键盘监听线程
     std::thread m_inputThread;                // 输入线程
+#ifdef _WIN32
     DWORD m_lastLeftMouseState;               // 上次左键鼠标状态
     DWORD m_lastRightMouseState;              // 上次右键鼠标状态
+#elif __linux__
+    bool m_lastLeftMouseState;                // 上次左键鼠标状态
+    bool m_lastRightMouseState;                // 上次右键鼠标状态
+    Display* m_display;                        // X11显示连接
+    std::mutex m_displayMutex;                 // X11显示连接互斥锁（X11不是线程安全的）
+#endif
     std::mt19937 m_randomGenerator;           // 随机数生成器
 };
 
